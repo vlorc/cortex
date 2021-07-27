@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/cortexproject/cortex/pkg/chunk/qiniu"
 	"strings"
 	"time"
 
@@ -49,6 +50,7 @@ const (
 	StorageTypeGrpc           = "grpc-store"
 	StorageTypeS3             = "s3"
 	StorageTypeSwift          = "swift"
+	StorageTypeQiniu              = "qiniu"
 )
 
 type indexStoreFactories struct {
@@ -88,6 +90,7 @@ type Config struct {
 	BoltDBConfig           local.BoltDBConfig      `yaml:"boltdb"`
 	FSConfig               local.FSConfig          `yaml:"filesystem"`
 	Swift                  openstack.SwiftConfig   `yaml:"swift"`
+	Qiniu                  qiniu.Config            `yaml:"qiniu"`
 
 	IndexCacheValidity time.Duration `yaml:"index_cache_validity"`
 
@@ -296,6 +299,8 @@ func NewChunkClient(name string, cfg Config, schemaCfg chunk.SchemaConfig, regis
 			return nil, err
 		}
 		return objectclient.NewClient(store, objectclient.Base64Encoder), nil
+	case StorageTypeQiniu:
+		return newChunkClientFromStore(qiniu.NewQiniuObjectClient(cfg.Qiniu))
 	case StorageTypeGrpc:
 		return grpc.NewStorageClient(cfg.GrpcConfig, schemaCfg)
 	default:
@@ -367,6 +372,8 @@ func NewObjectClient(name string, cfg Config) (chunk.ObjectClient, error) {
 		return chunk.NewMockStorage(), nil
 	case StorageTypeFileSystem:
 		return local.NewFSObjectClient(cfg.FSConfig)
+	case StorageTypeQiniu:
+		return qiniu.NewQiniuObjectClient(cfg.Qiniu)
 	default:
 		return nil, fmt.Errorf("Unrecognized storage client %v, choose one of: %v, %v, %v, %v, %v", name, StorageTypeAWS, StorageTypeS3, StorageTypeGCS, StorageTypeAzure, StorageTypeFileSystem)
 	}
